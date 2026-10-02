@@ -1,0 +1,316 @@
+# Leahy Lending — Apache / SiteGround configuration
+#
+# Two jobs:
+#   1. Route real SPA routes through index.html so the React router can handle
+#      client-side navigation.
+#   2. Return a genuine HTTP 404 for anything else.
+#
+# Why the route allowlist below exists: the previous version rewrote EVERY
+# unmatched path to index.html, which returned HTTP 200 with the homepage for
+# any URL at all — including missing assets, so /landing-assets/typo.css came
+# back as HTML with status 200. Search engines read that as an unlimited supply
+# of duplicate homepages, and it makes "does this URL load?" useless as a
+# deployment check.
+#
+# MAINTENANCE: if a new page is added to the React app, add its route to the
+# allowlist or it will 404. Flat directories (the /texas/... landing pages) do
+# NOT need listing — they are real directories and pass through on their own.
+
+# Never expose a directory listing.
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # EVERY index.html IS A DUPLICATE OF ITS DIRECTORY, and is redirected.
+  #
+  # The root case came first: /index.html served HTTP 200 with the shell, and
+  # Search Console had it in the Soft 404 list with a crawl date of 12 September
+  # 2026. Two URLs, one page.
+  #
+  # WIDENED 21 September 2026, because the root was not the only one. A full
+  # route sweep against production found the same duplicate under every
+  # directory — /texas/dallas-fort-worth/self-employed-mortgages/index.html and
+  # twenty-six others all answered 200 with the page their directory already
+  # serves. Each is a second address for a page whose canonical points at the
+  # first, which is the near-duplicate condition several pages are already held
+  # out of the index to avoid.
+  #
+  # THE_REQUEST is what makes this safe. It holds the original request line, so
+  # it matches only when a browser or crawler actually asked for index.html. An
+  # INTERNAL rewrite to index.html — which is how every SPA route and every
+  # directory is served — leaves THE_REQUEST untouched, so it falls through to
+  # the pass-through rule below instead of redirecting. Matching on the
+  # rewritten path would loop: a directory rewrites to index.html, index.html
+  # redirects back to the directory, forever.
+  #
+  # %1 is the directory captured by the RewriteCond, so the redirect lands on
+  # that directory rather than on the site root.
+  #
+  # This must stay ABOVE the pass-through rule. That rule ends with [L], and a
+  # redirect placed after it would never be reached.
+  RewriteCond %{THE_REQUEST} \s/(.*/)?index\.html[\s?] [NC]
+  RewriteRule ^(.*/)?index\.html$ /%1 [R=301,L]
+
+  # Serve index.html as-is; do not rewrite it
+  RewriteRule ^index\.html$ - [L]
+
+  # /texas/ MAY carry a hub page. It 404s only when it does not: the
+  # condition tests for an index.html on disk, exactly as the market-segment
+  # rule below does, so the clean 404 is preserved if the hub is ever removed
+  # and the page is served while it exists.
+  #
+  # BEFORE 24 September 2026 this 404'd unconditionally, because /texas/ was
+  # an intermediate directory with no page. The neutral statewide hub now
+  # lives there, is indexable and is in the sitemap, so the unconditional
+  # rule would have handed Google a 404 for a page we had just asked it to
+  # index.
+  RewriteCond %{DOCUMENT_ROOT}/texas/index.html !-f
+  RewriteRule ^texas/?$ - [R=404,L]
+
+  # /florida/ follows the same rule as /texas/: it carries a statewide hub, so
+  # it 404s only when no index.html is on disk. The market-segment guard below
+  # is NOT mirrored for it — Florida is statewide, so its second path segment
+  # is a product page, not an empty intermediate directory.
+  RewriteCond %{DOCUMENT_ROOT}/florida/index.html !-f
+  RewriteRule ^florida/?$ - [R=404,L]
+
+  # A market segment such as /texas/dallas-fort-worth/ MAY carry a hub page.
+  # It 404s only when it does not: the condition tests for an index.html on
+  # disk, so adding a hub for a new market needs no change here, and a market
+  # directory that only holds program pages still returns a clean 404 instead
+  # of a directory listing. The landing pages one level deeper are unaffected.
+  RewriteCond %{DOCUMENT_ROOT}/$1/index.html !-f
+  RewriteRule ^(texas/[^/]+)/?$ - [R=404,L]
+
+  # The page template is a real directory with an index.html, so the on-disk
+  # rule below would serve it — a page full of {{TOKENS}} reachable in public.
+  # It is excluded from the deployment package, so this is belt and braces
+  # against it being uploaded by hand. Same treatment for anything else that
+  # is source rather than a page.
+  RewriteRule ^_template(/.*)?$ - [R=404,L]
+  RewriteRule ^\.claude(/.*)?$ - [R=404,L]
+  RewriteRule ^landing-manifest\.json$ - [R=404,L]
+  RewriteRule ^(LANDING-PAGE-SPEC|HANDOFF|COMPLIANCE-RULES|CRM-ROUTING|IMAGE-CREDITS|COPY-REVIEW|GO-LIVE|ERIC-CONSOLIDATED-HANDOFF|ERIC-HANDOFF-RESPONSE|STAGING-CHANGE-LOG|PUBLIC-CLAIMS|ROUTES|ANALYTICS-EVENTS|ERIC-HANDOFF-ADDENDUM-B|LAUNCH-BLOCKERS|ERIC-RESPONSE-2026-09-15|dfw-indexation-audit|dfw-indexation-remediation|GSC-BASELINE-PRE-DEPLOY-2026-09-25)\.md$ - [R=404,L]
+  # Every handoff document, by pattern rather than by name. The named list above
+  # had to be edited each time one was written, so the next one would have been
+  # served. These name unapproved claims and open decisions.
+  RewriteRule ^ERIC-[A-Za-z0-9-]+\.md$ - [R=404,L]
+  RewriteRule ^GSC-[A-Za-z0-9-]+\.md$ - [R=404,L]
+  RewriteRule ^AUDIT-[A-Za-z0-9-]+\.md$ - [R=404,L]
+  RewriteRule ^VISIBILITY-[A-Za-z0-9-]+\.md$ - [R=404,L]
+  RewriteRule ^(verify-routes|preflight)\.sh$ - [R=404,L]
+  # The DFW indexation audit CSVs. Internal for the same reason as the .md files
+  # beside them: they carry the open home-loans decision and the per-URL status.
+  # Nothing covered a .csv at the web root before these existed. build-fileset.js
+  # excludes them from upload/; this is the second control, so the two agree.
+  RewriteRule ^(dfw-indexation-audit|dfw-internal-link-map)\.csv$ - [R=404,L]
+
+  # Retired DFW route. The bank-statement page moved from .../bank-statement-loans/
+  # to .../bank-statement-mortgages/ (spec section 12.3, and previous_route in
+  # landing-manifest.json). The old directory still held a first-generation
+  # staging draft — old brand tagline, disabled form, duplicate landing_page_id —
+  # and because "anything on disk wins" sits below, that stale page was being
+  # served with a 200. It now 301s to the current page.
+  #
+  # This rule MUST stay above the on-disk check, or the file would win again.
+  RewriteRule ^texas/dallas-fort-worth/bank-statement-loans/?$ /texas/dallas-fort-worth/bank-statement-mortgages/ [R=301,L]
+
+  # Consolidated onto the two hubs, mirroring the Austin site: it names 14 loan
+  # products but gives 5 their own page and routes the rest to /home-loans or
+  # /self-employed-mortgage-loans. Each target below is the href Austin's own
+  # program card uses. Page files live in _retired/ and are not deployed.
+  # Profit & Loss Loans -> /self-employed-mortgage-loans
+  RewriteRule ^texas/dallas-fort-worth/profit-and-loss-mortgages/?$ /texas/dallas-fort-worth/self-employed-mortgages/ [R=301,L]
+  # asset-utilization-mortgages was redirected here until 14 September 2026.
+  # It is a live page again, so the rule is gone: a 301 on a path that has a
+  # real file would send every visitor to the hub and the page would be
+  # unreachable in production while looking fine in local preview.
+  # Asset Only Program -> /self-employed-mortgage-loans
+  RewriteRule ^texas/dallas-fort-worth/asset-only-mortgages/?$ /texas/dallas-fort-worth/self-employed-mortgages/ [R=301,L]
+  # Bridge Loans -> /home-loans
+  RewriteRule ^texas/dallas-fort-worth/bridge-loans/?$ /texas/dallas-fort-worth/home-loans/ [R=301,L]
+  # Buy Before You Sell -> /home-loans
+  RewriteRule ^texas/dallas-fort-worth/buy-before-you-sell/?$ /texas/dallas-fort-worth/home-loans/ [R=301,L]
+  # Seller Financing (MORE) -> /home-loans
+  RewriteRule ^texas/dallas-fort-worth/seller-financing-more/?$ /texas/dallas-fort-worth/home-loans/ [R=301,L]
+  # Spec Construction Lending -> /home-loans
+  RewriteRule ^texas/dallas-fort-worth/spec-construction-loans/?$ /texas/dallas-fort-worth/home-loans/ [R=301,L]
+  # Jumbo & Super Jumbo Loans -- feature section on /home-loans
+  RewriteRule ^texas/dallas-fort-worth/jumbo-mortgages/?$ /texas/dallas-fort-worth/home-loans/ [R=301,L]
+  # Second Home Financing -- feature section on /home-loans
+  RewriteRule ^texas/dallas-fort-worth/second-home-mortgages/?$ /texas/dallas-fort-worth/home-loans/ [R=301,L]
+  RewriteRule ^texas/dallas-fort-worth/how-to-qualify/?$ /texas/dallas-fort-worth/self-employed-mortgages/ [R=301,L]
+  # Renamed 15 September 2026, RSU handoff section 3: the page moved from
+  # .../rsu-bonus-commission-mortgages/ to .../rsu-bonus-commission-income/,
+  # which is the route its canonical, og:url and title tag all name. The old
+  # directory has been removed from disk as well — "anything on disk wins"
+  # sits below, so a leftover file there would beat this rule.
+  RewriteRule ^texas/dallas-fort-worth/rsu-bonus-commission-mortgages/?$ /texas/dallas-fort-worth/rsu-bonus-commission-income/ [R=301,L]
+  # Renamed 15 September 2026, DSCR handoff: the page moved from
+  # .../dscr-investor-mortgages/ to .../dscr-investor-loans/, the route its
+  # canonical names. The old directory is removed from disk as well.
+  RewriteRule ^texas/dallas-fort-worth/dscr-investor-mortgages/?$ /texas/dallas-fort-worth/dscr-investor-loans/ [R=301,L]
+
+  # One page, one URL. Every market page was reachable at three addresses:
+  #   /texas/{market}/{page}/             the canonical form
+  #   /texas/{market}/{page}              no trailing slash
+  #   /texas/{market}/{page}/index.html   the file itself
+  # The canonical tag pointed search engines at the first, but all three
+  # returned 200, which splits crawl and analytics for no benefit. Both
+  # variants now 301 to the canonical form.
+  #
+  # mod_dir's DirectorySlash usually handles the missing-slash case on Apache;
+  # the rule is explicit here because the preview server has no such default
+  # and the two must behave identically. Scoped to /texas/ so the top-level
+  # index.html rule above is untouched.
+  # Extended from ^texas/ to cover every market cluster. A Florida page was
+    # otherwise reachable at three addresses, all returning 200, which splits
+    # crawl and analytics for a cluster with none to spare.
+    RewriteRule ^((?:texas|florida)/.+?)/index\.html$ /$1/ [R=301,L]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^((?:texas|florida)/.+[^/])$ /$1/ [R=301,L]
+
+  # ---------------------------------------------------------------------------
+  # LEGACY WORDPRESS URLS — added 21 September 2026.
+  #
+  # Search Console still holds URLs from the site that preceded this one. They
+  # came back as Soft 404 because ErrorDocument served the app shell; that is
+  # fixed separately. These rules are the other half: where an old URL has a
+  # genuine equivalent today, it should 301 to it rather than 404, so whatever
+  # authority those URLs carry moves to the page that replaced them.
+  #
+  # ONLY URLS WITH A REAL EQUIVALENT ARE REDIRECTED. The blog posts, /project/*,
+  # /author/leahylending/, /resources/, /more/, /careers-with-leahy-lending/ and
+  # the rest have no counterpart on this site, and Google's own guidance is that
+  # a 404 is the correct answer for content that is genuinely gone. Redirecting
+  # them to the homepage would manufacture a fresh set of soft 404s, which is
+  # the problem being fixed. They now get the real 404 document instead.
+  #
+  # THE PEOPLE PAGES POINT AT /about, EXCEPT ERIC'S, WHICH NOW HAS A REAL PAGE.
+  #
+  # These rules name the specific old URLs Search Console lists rather than the
+  # whole /loan-officers/ prefix, precisely so the new profile could be built at
+  # /loan-officers/eric-bennett/ without colliding with a redirect. That page
+  # now exists and ships in this fileset, so the note that used to sit here —
+  # "when it ships, /leadership-team/eric-bennett/ should point at it instead" —
+  # is carried out below. Eric's build spec, section 12, asks for exactly this:
+  # "Legacy redirect: /leadership-team/eric-bennett/ currently 301s to /about as
+  # a placeholder. Repoint it here once live."
+  #
+  # The redirect and its destination ship together, so there is no window where
+  # this points at a 404.
+  #
+  # Ryan Leahy keeps pointing at /about — there is no profile page for him, and
+  # inventing one is not something a redirect gets to decide.
+  #
+  # BARE /loan-officers/ STILL GOES TO /about, deliberately. Eric's spec calls
+  # /loan-officers/ "a SECTION, not a one-off page", built so further approved
+  # profiles can use the same structure later. A section index would be new
+  # public copy, which is not authorized, so the prefix keeps its 301 rather
+  # than becoming a 404 or an empty listing.
+
+  RewriteRule ^loan-officers/?$                        /about/ [R=301,L]
+  RewriteRule ^loan-officers/(barry-wheeler|ethan-cope|james-bonacci)/?$  /about/ [R=301,L]
+  RewriteRule ^leadership-team/?$                      /about/ [R=301,L]
+  RewriteRule ^leadership-team/eric-bennett/?$         /loan-officers/eric-bennett/ [R=301,L]
+# The DFW profile path was live between 25 and 27 September 2026 and may have
+# been crawled or linked, so it 301s to the restored canonical rather than 404ing.
+RewriteRule ^texas/dallas-fort-worth/loan-officers/eric-bennett/?$  /loan-officers/eric-bennett/ [R=301,L]
+  # The profile moved under the DFW path on 27 September 2026: it is DFW-
+  # tagged, carries the DFW phone, and is linked from ten DFW pages that were
+  # dropping visitors onto Austin navigation. The old URL keeps its equity.
+  # The profile LIVES at /loan-officers/eric-bennett/ again (owner, 27 Sep 2026),
+# so it must not be redirected. The retired DFW URL 301s here instead, below.
+  RewriteRule ^leadership-team/ryan-leahy/?$           /about/ [R=301,L]
+  RewriteRule ^teams/ryan-leahy/?$                     /about/ [R=301,L]
+  RewriteRule ^services/leadership/ryan-leahy/?$       /about/ [R=301,L]
+
+  RewriteRule ^services/construction-loans/?$          /construction-loans/ [R=301,L]
+  RewriteRule ^services/investor-solutions/?$          /dscr-investor-loans/ [R=301,L]
+  RewriteRule ^services/(conventional-loans|usda-loans|fha-loans|green-mortgage)/?$  /home-loans/ [R=301,L]
+  RewriteRule ^services/?$                             /home-loans/ [R=301,L]
+
+  RewriteRule ^calculators/(payment-calculator|affordability-calculator)/?$  /mortgage-payment-amortization-calculator/ [R=301,L]
+
+  RewriteRule ^how-to-qualify-for-a-home-loan-in-texas-your-friendly-guide/?$  /how-self-employed-borrowers-qualify-for-mortgage/ [R=301,L]
+  # ---------------------------------------------------------------------------
+
+  # Anything that exists on disk wins: real files, directories, symlinks.
+  # This is what serves /assets/*, /landing-assets/*, and the /texas/... pages.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d [OR]
+  RewriteCond %{REQUEST_FILENAME} -l
+  RewriteRule ^ - [L]
+
+  # THE LAST SPA ROUTE -> the preserved shell (HTTP 200, the router takes over)
+  #
+  # This listed thirteen routes and rewrote them to /index.html. Both halves of
+  # that are now wrong, and the second half is the dangerous one:
+  #
+  #   - Twelve of the thirteen are real directories with real static pages, so
+  #     the "anything on disk wins" rule above answers them and never reaches
+  #     here. /apply is the only one left: it is the one route with no captured
+  #     DOM, so it could not be converted with the others.
+  #
+  #   - /index.html IS NO LONGER THE REACT SHELL. It is the static homepage.
+  #     Leaving this pointing at it would have served the HOMEPAGE at /apply —
+  #     HTTP 200, wrong content, on a URL that is in the sitemap. The shell is
+  #     preserved verbatim as /app-shell.html by build-static-routes.js, which
+  #     refuses to overwrite the root unless it has first saved a copy.
+  #
+  # `404` was removed from that list on 21 September 2026. It made /404 return
+  # HTTP 200 with the app shell, which is the textbook soft-404 signature: a
+  # success status on a page whose whole purpose is to say something is missing.
+  # It now falls through to the real 404 document with a 404 status.
+  # NO SPA ROUTE REMAINS. /apply was the last one, and it is a real directory as
+  # of 24 September, so the "anything on disk wins" rule above answers it and
+  # nothing reaches here. The rewrite that used to send it to the shell is gone
+  # rather than left in place, because a rule that can never fire is a rule the
+  # next reader has to work out the status of.
+  #
+  # THE SHELL AND ITS 1.47 MB BUNDLE ARE STILL SHIPPED, deliberately, for this
+  # one deploy. Nothing references them and nothing routes to them, so they cost
+  # only disk. They are kept so that if any route turns out to have depended on
+  # the router in a way this conversion missed, restoring it is one line here
+  # rather than a re-upload. Delete both once the six routes are confirmed live.
+
+  # The shell is plumbing, not a page. Requested directly it is an empty
+  # document that renders the homepage view at the wrong URL — a duplicate for
+  # anything that finds it. Direct requests get the 404 document; the internal
+  # rewrite above is unaffected, because THE_REQUEST holds the original request
+  # line and does not change when Apache rewrites internally.
+  RewriteCond %{THE_REQUEST} \s/app-shell\.html[\s?] [NC]
+  RewriteRule ^ - [R=404,L]
+
+
+  # Everything else falls through to the 404 handler below.
+</IfModule>
+
+# A REAL 404 DOCUMENT — changed 21 September 2026.
+#
+# This read `ErrorDocument 404 /index.html`. The intent was that a visitor would
+# still get branded chrome and the React 404 view, with a correct 404 status.
+# For a visitor it worked. For a crawler it did not: the shell is a 5KB document
+# whose only text is "Leahy Lending" until JavaScript runs, so every missing URL
+# answered with a 404 status and an empty-looking body.
+#
+# Google Search Console classified 31 URLs as Soft 404 on the back of it, nearly
+# all of them from the previous WordPress site — /blog/, /services/, /project/,
+# /author/leahylending/, /calculators/, /loan-officers/, /leadership-team/ and
+# the rest. Verified on the live site: every one returned a 404 status with a
+# body byte-identical to the homepage.
+#
+# 404.html is small, static and self-describing, and says "page not found" in
+# HTML rather than after a render step. It carries noindex, follow: a 404 status
+# already keeps it out of the index, and `follow` lets its links pass through.
+ErrorDocument 404 /404.html
+
+
+# Force HTTPS — uncomment these lines AFTER activating SSL in SiteGround Site Tools
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteCond %{HTTPS} off
+#   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>

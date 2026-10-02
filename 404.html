@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<!--
+  The 404 document.
+
+  WHY THIS FILE EXISTS
+  .htaccess used to read `ErrorDocument 404 /index.html`, so every missing URL
+  returned a 404 status with the React shell as its body — a 5KB document whose
+  only text is "Leahy Lending" until JavaScript runs. Google Search Console
+  classified 31 URLs as Soft 404 off the back of it, nearly all of them from the
+  previous WordPress site: /blog/, /services/, /project/, /author/leahylending/,
+  /calculators/, /loan-officers/, /leadership-team/ and similar.
+
+  A 404 should be a small, self-contained page that says so. This one renders
+  its message from HTML with no script, no bundle and no render step, so a
+  crawler that does not execute JavaScript still reads "page not found" rather
+  than an empty document.
+
+  DELIBERATELY NOT THE SITE CHROME. No nav, no marquee, no footer. Those pull in
+  stylesheets and the compiled bundle, which is how the shell ended up here in
+  the first place. A handful of links back into the site is what a visitor
+  actually needs.
+
+  Styles are inline for the same reason: this page must render correctly even if
+  the asset it would otherwise reference is the thing that is missing.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page Not Found | Leahy Lending</title>
+<meta name="robots" content="noindex, follow">
+<!-- Google tag (gtag.js) - GA4. A 404 page is worth measuring: it is the only
+     way to see WHICH dead URLs people and crawlers are still hitting, which is
+     what turned the legacy WordPress list into actionable redirects rather than
+     guesswork. The snippet is external and async, so the page still renders its
+     message with no JavaScript at all — which is the requirement this document
+     exists to satisfy. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-2LMXT6BVCY"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-2LMXT6BVCY');
+</script>
+<style>
+  :root {
+    --navy: #0A1628;
+    --gold: #d09945;
+    --ink: #1a2332;
+    --muted: #5a6674;
+    --line: rgba(10, 22, 40, .12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #fff;
+    color: var(--ink);
+    font-family: 'Outfit', 'Helvetica Neue', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+  main { max-width: 560px; width: 100%; }
+  .brand {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: .01em;
+    margin: 0 0 4px;
+  }
+  .tag {
+    font-size: .68rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 40px;
+  }
+  .code {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(1.9rem, 5vw, 2.6rem);
+    font-weight: 600;
+    color: var(--navy);
+    margin: 0 0 14px;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+  p { margin: 0 0 28px; color: var(--muted); }
+  nav { border-top: 1px solid var(--line); padding-top: 24px; }
+  .label {
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  @media (min-width: 520px) { ul { grid-template-columns: 1fr 1fr; } }
+  a { color: var(--navy); text-decoration: none; border-bottom: 1px solid var(--gold); }
+  a:hover, a:focus { color: var(--gold); }
+  a:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .home { display: inline-block; margin-top: 26px; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <p class="brand">Leahy Lending</p>
+  <p class="tag">&mdash; The Lender Entrepreneurs Trust &mdash;</p>
+
+  <p class="code">Error 404</p>
+  <h1>We couldn&rsquo;t find that page.</h1>
+  <p>
+    The address may have changed, or the page may no longer exist. The links
+    below cover the most common places people are heading.
+  </p>
+
+  <nav aria-label="Popular pages">
+    <p class="label">Mortgage Options</p>
+    <ul>
+      <li><a href="/self-employed-mortgage-loans/">Self-Employed Mortgages</a></li>
+      <li><a href="/bank-statement-loans/">Bank Statement Loans</a></li>
+      <li><a href="/1099-mortgage-loans/">1099 Income Mortgages</a></li>
+      <li><a href="/dscr-investor-loans/">DSCR Investor Loans</a></li>
+      <li><a href="/construction-loans/">Construction Loans</a></li>
+      <li><a href="/home-loans/">Home Loans</a></li>
+      <li><a href="/mortgage-payment-amortization-calculator/">Mortgage Calculator</a></li>
+      <li><a href="/contact">Contact</a></li>
+    </ul>
+    <a class="home" href="/">Return to the homepage &rarr;</a>
+  </nav>
+</main>
+</body>
+</html>

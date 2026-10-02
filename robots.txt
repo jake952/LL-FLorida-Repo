@@ -1,0 +1,6 @@
+# Production. Answer engines and search crawlers are welcome.
+# The DFW pages exist to be read by them; source files are 404ed in .htaccess.
+User-agent: *
+Allow: /
+
+Sitemap: https://leahylending.com/sitemap.xml
